@@ -27,13 +27,19 @@ import java.sql.Savepoint;
 import java.sql.Statement;
 import java.sql.Struct;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.Properties;
 import java.util.Vector;
 import java.util.concurrent.Executor;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.Comparator;
 
 /**
  * This class implements the java.sql.Connection JDBC interface for the CsvJdbc driver.
@@ -148,6 +154,10 @@ public class CsvConnection implements Connection {
 
     private String quoteStyle;
 
+    private boolean handleLineBreaks;
+
+    private Set<String> tablesToAddPrimaryKey = new HashSet<String>();
+
     private ArrayList<int[]> fixedWidthColumns = null;
 
     private HashMap<String, Method> sqlFunctions = new HashMap<String, Method>();
@@ -244,7 +254,7 @@ public class CsvConnection implements Connection {
                     for (int i = 0; i < parameters.length; i++) {
 						/*
 						 * Does this method have a variable length argument list?
-						 * 
+						 *
 						 * In this case, the last parameter is an array containing the
 						 * the remaining parameters.
 						 */
@@ -477,6 +487,15 @@ public class CsvConnection implements Connection {
         setIgnoreUnparseableLines(Boolean.parseBoolean(info.getProperty(
                 CsvDriver.IGNORE_UNPARSEABLE_LINES,
                 CsvDriver.DEFAULT_IGNORE_UNPARSEABLE_LINES)));
+        setHandleLineBreaks(Boolean.parseBoolean(info.getProperty(
+                CsvDriver.HANDLE_LINEBREAKS,
+                CsvDriver.DEFAULT_HANDLE_LINEBREAKS)));
+        if (info.getProperty(CsvDriver.TABLES_TO_ADD_PRIMARY_KEY) != null) {
+            prop = info.getProperty(CsvDriver.TABLES_TO_ADD_PRIMARY_KEY);
+            for (String tableName : prop.split(",")) {
+                getTablesToAddPrimaryKey().add(tableName);
+            }
+        }
     }
 
     /**
@@ -522,6 +541,18 @@ public class CsvConnection implements Connection {
         if (info != null) {
             setProperties(info);
         }
+    }
+
+    public Set<String> getTablesToAddPrimaryKey() {
+        return this.tablesToAddPrimaryKey;
+    }
+
+    public boolean getHandleLineBreaks() {
+        return this.handleLineBreaks;
+    }
+
+    private void setHandleLineBreaks(boolean handleLineBreaks) {
+        this.handleLineBreaks = handleLineBreaks;
     }
 
     private void setQuoteStyle(String property) {
@@ -1213,17 +1244,55 @@ public class CsvConnection implements Connection {
     public List<String> getTableNames() throws SQLException {
         List<String> tableNames = new ArrayList<String>();
         if (path != null) {
-            File[] matchingFiles = new File(path).listFiles(new FilenameFilter() {
-                public boolean accept(File dir, String name) {
-                    return name.endsWith(extension);
+            if (indexedFiles) {
+                Pattern fileNameRE = Pattern.compile("^.*(" + fileNamePattern + ")" + extension + "$");
+                File[] matchingFiles = new File(path).listFiles(new FilenameFilter() {
+                    public boolean accept(File dir, String name) {
+                        return name.endsWith(extension);
+                    }
+                });
+                // remove filePatternTail if it matches
+                Arrays.sort(matchingFiles, new Comparator()
+                {
+                    @Override
+                    public int compare(Object f1, Object f2) {
+                        return ((File) f1).getName().compareTo(((File) f2).getName());
+                    }
+                });
+                for (int i = 0; i < matchingFiles.length; i++) {
+                    String name = matchingFiles[i].getName();
+                    Matcher m = fileNameRE.matcher(name);
+                    if (matchingFiles[i].isFile() && matchingFiles[i].canRead()) {
+                        if (m.matches() && m.groupCount() > 0) {
+                            String prefix = name.substring(0, name.indexOf(m.group(1)));
+                            tableNames.add(prefix);
+                            // Skip same prefix
+                            while ((i+1) < matchingFiles.length && matchingFiles[(i+1)].getName().startsWith(prefix)) {
+                                i++;
+                            }
+                        } else {
+                            if (matchingFiles[i].isFile() && matchingFiles[i].canRead()) {
+                                String filename = matchingFiles[i].getName();
+                                String tableName = filename.substring(0,
+                                        filename.length() - extension.length());
+                                tableNames.add(tableName);
+                            }
+                        }
+                    }
                 }
-            });
-            for (int i = 0; i < matchingFiles.length; i++) {
-                if (matchingFiles[i].isFile() && matchingFiles[i].canRead()) {
-                    String filename = matchingFiles[i].getName();
-                    String tableName = filename.substring(0,
-                            filename.length() - extension.length());
-                    tableNames.add(tableName);
+            } else {
+                File[] matchingFiles = new File(path).listFiles(new FilenameFilter() {
+                    public boolean accept(File dir, String name) {
+                        return name.endsWith(extension);
+                    }
+                });
+                for (int i = 0; i < matchingFiles.length; i++) {
+                    if (matchingFiles[i].isFile() && matchingFiles[i].canRead()) {
+                        String filename = matchingFiles[i].getName();
+                        String tableName = filename.substring(0,
+                                filename.length() - extension.length());
+                        tableNames.add(tableName);
+                    }
                 }
             }
         } else {

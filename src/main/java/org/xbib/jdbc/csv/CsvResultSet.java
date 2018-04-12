@@ -269,7 +269,7 @@ public class CsvResultSet implements ResultSet {
             Object[] o = this.queryEnvironment.get(i);
             if (o[1] instanceof AsteriskExpression) {
                 AsteriskExpression asteriskExpression = (AsteriskExpression) o[1];
-				
+
 				/*
 				 * Check that any table alias is valid.
 				 */
@@ -332,7 +332,7 @@ public class CsvResultSet implements ResultSet {
                         throw new SQLException(CsvResources.getString("invalidOrderBy") + ": " + n);
                     }
                     int index = n.value.intValue();
-					
+
 					/*
 					 * Column numbering in SQL starts at 1, not 0.
 					 */
@@ -406,7 +406,7 @@ public class CsvResultSet implements ResultSet {
                 allReaderColumns.add(o[0].toString());
             }
         }
-		
+
 		/*
 		 * Check that all columns used in the WHERE, GROUP BY, HAVING
 		 * and ORDER BY clauses do exist in the table.

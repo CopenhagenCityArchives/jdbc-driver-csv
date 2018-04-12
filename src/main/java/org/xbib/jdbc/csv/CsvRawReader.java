@@ -1,7 +1,5 @@
 package org.xbib.jdbc.csv;
 
-import org.xbib.jdbc.io.DataReader;
-
 import java.io.IOException;
 import java.io.LineNumberReader;
 import java.sql.SQLException;
@@ -9,6 +7,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.Vector;
+import org.xbib.jdbc.io.DataReader;
+
+import java.io.IOException;
+import java.io.LineNumberReader;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Vector;
 
 /**
@@ -28,9 +33,12 @@ public class CsvRawReader {
     private Character quoteChar = '"';
     private boolean trimValues = true;
     private String comment = null;
+    private boolean handleLineBreaks = false;
     private boolean ignoreUnparseableLines;
     private String quoteStyle;
     private ArrayList<int[]> fixedWidthColumns;
+    private ArrayList<String> lineBuffer;
+    private ArrayList<Integer> lineNumberBuffer;
 
     /**
      * Insert the method's description here.
@@ -50,7 +58,7 @@ public class CsvRawReader {
                         String headerLine, boolean trimHeaders, boolean trimValues,
                         int skipLeadingLines, boolean ignoreUnparseableLines,
                         boolean defectiveHeaders, int skipLeadingDataLines, String quoteStyle,
-                        ArrayList<int[]> fixedWidthColumns)
+                        boolean handleLineBreaks, ArrayList<int[]> fixedWidthColumns)
             throws IOException, SQLException {
         this.tableAlias = tableAlias;
         this.separator = separator;
@@ -64,6 +72,9 @@ public class CsvRawReader {
         this.ignoreUnparseableLines = ignoreUnparseableLines;
         this.quoteStyle = quoteStyle;
         this.fixedWidthColumns = fixedWidthColumns;
+        this.handleLineBreaks = handleLineBreaks;
+        this.lineBuffer = new ArrayList<String>();
+        this.lineNumberBuffer = new ArrayList<Integer>();
 
         for (int i = 0; i < skipLeadingLines; i++) {
             in.readLine();
@@ -128,9 +139,11 @@ public class CsvRawReader {
                 // The buffer is not empty yet, so use this first.
                 dataLine = firstLineBuffer;
                 firstLineBuffer = null;
-            } else {
+            } else if (!handleLineBreaks){
                 // read new line of data from input.
                 dataLine = getNextDataLine();
+            } else if (handleLineBreaks) {
+                dataLine = getNextDataLineHandleLineBreaksShortLines();
             }
             if (dataLine == null) {
                 input.close();
@@ -153,6 +166,67 @@ public class CsvRawReader {
             firstLineBuffer = null;
         } catch (Exception e) {
         }
+    }
+
+    /**
+     *
+     */
+    protected String getNextDataLineHandleLineBreaksShortLines() throws IOException, SQLException {
+        int fieldCount;
+        String dataLine = getNextDataLine();
+        if (lineBuffer.isEmpty())
+        {
+            if (dataLine == null) {
+                return null;
+            }
+            lineBuffer.add(dataLine);
+            lineNumberBuffer.add(input.getLineNumber());
+            dataLine = getNextDataLine();
+        }
+
+        fieldCount = parseLine(String.join("\r\n", lineBuffer), true).length;
+        while (dataLine != null && columnNames.length > fieldCount) {
+            lineBuffer.add(dataLine);
+            lineNumberBuffer.add(input.getLineNumber());
+            dataLine = input.readLine();
+            fieldCount = parseLine(String.join("\r\n", lineBuffer), true).length;
+        }
+
+        if (fieldCount == columnNames.length) {
+            String tmp = String.join("\r\n", lineBuffer);
+            if (dataLine != null && parseLine(dataLine, true).length == 1) {
+                // if dataLine contains only one field, we assume it is caused
+                // by a linebreak in the last field of the previous row
+                tmp += "\r\n" + dataLine;
+                lineBuffer.clear();
+                dataLine = tmp;
+            } else {
+                lineBuffer.clear();
+                lineBuffer.add(dataLine);
+                lineNumberBuffer.add(input.getLineNumber());
+                dataLine = tmp;
+            }
+        } else if (fieldCount > columnNames.length) {
+            // must have more fields in buffer than in column
+            String tmp = "";
+            int tmpFieldCount;
+            int startRow = lineNumberBuffer.get(0);
+            int endRow;
+            do {
+                tmp += lineBuffer.remove(0);
+                endRow = lineNumberBuffer.remove(0);
+                tmpFieldCount = parseLine(tmp, true).length;
+            } while (!lineBuffer.isEmpty() && tmpFieldCount+(parseLine(lineBuffer.get(0),true).length) < columnNames.length);
+            int numRows = columnNames.length - tmpFieldCount;
+            // add separators
+            for (int i = 0; i < numRows; i++) {
+                tmp += this.separator;
+            }
+            //System.out.println("Merging rows " + numRows + ", but adding missing fields. StartRow=" + startRow + " EndRow=" + endRow + " Line=" + tmp);
+            dataLine = tmp;
+        }
+
+        return dataLine;
     }
 
     /**
@@ -440,7 +514,7 @@ public class CsvRawReader {
 
     private boolean atSeparator(String line, int currentPos) {
         boolean matchesSeparator;
-		
+
 		/*
 		 * Quicker to compare just the current character for the
 		 * normal case of a single character separator.

@@ -122,7 +122,7 @@ public class CsvDatabaseMetaData implements DatabaseMetaData {
             while (resultSet.next()) {
                 String tableName = resultSet.getString(3);
 
-                resultSet2 = internalStatement.executeQuery("SELECT * FROM " + tableName);
+                resultSet2 = internalStatement.executeQuery("SELECT * FROM \"" + tableName + "\"");
                 ResultSetMetaData metadata = resultSet2.getMetaData();
                 int nColumns = metadata.getColumnCount();
                 Integer columnSize = Integer.valueOf(Short.MAX_VALUE);

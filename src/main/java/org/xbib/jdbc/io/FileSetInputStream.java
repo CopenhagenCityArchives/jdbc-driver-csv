@@ -20,6 +20,8 @@ import java.util.regex.Pattern;
  */
 public class FileSetInputStream extends InputStream {
     private String dirName;
+    private String tableName;
+    private String extension;
     private List<String> fileNames;
     private EncryptedFileInputStream currentFile;
     private boolean readingHeader;
@@ -48,11 +50,13 @@ public class FileSetInputStream extends InputStream {
      * @param skipLeadingDataLines
      * @throws java.io.IOException
      */
-    public FileSetInputStream(String dirName, String fileNamePattern,
+    public FileSetInputStream(String dirName, String tableName, String fileNamePattern, String extension,
                               String[] fieldsInName, String separator, boolean prepend,
                               boolean headerless, CryptoFilter filter, int skipLeadingDataLines)
             throws IOException {
         this.dirName = dirName;
+        this.tableName = tableName;
+        this.extension = extension;
         this.filter = filter;
         this.skipLeadingDataLines = skipLeadingDataLines;
         if (!headerless) {
@@ -90,11 +94,11 @@ public class FileSetInputStream extends InputStream {
         File root = new File(dirName);
         String[] candidates = root.list();
 
-        fileNameRE = Pattern.compile(fileNamePattern);
+        fileNameRE = Pattern.compile(tableName + fileNamePattern + extension);
 
         for (int i = 0; i < candidates.length; i++) {
             Matcher m = fileNameRE.matcher(candidates[i]);
-            if (m.matches()) {
+            if (m.matches() || (tableName + extension).equals(candidates[i])) {
                 fileNames.add(candidates[i]);
             }
         }
@@ -102,6 +106,8 @@ public class FileSetInputStream extends InputStream {
         if (fileNames.isEmpty()) {
             return;
         }
+
+        System.out.println("       - Using files: " + String.join(", ", fileNames));
 
         fileNameRE = Pattern.compile(".*" + fileNamePattern);
         readingHeader = true;

@@ -26,15 +26,19 @@ public class CsvReader extends DataReader {
     private StringConverter converter;
     private String[] fieldValues;
     private int lineNumber;
+    private boolean addPrimaryKey;
+    private int pkeyCounter = 0;
 
     public CsvReader(CsvRawReader rawReader, int transposedLines,
-                     int transposedFieldsToSkip, String headerline) throws SQLException {
+                     int transposedFieldsToSkip, boolean addPrimaryKey,
+                     String headerline) throws SQLException {
         super();
 
         this.rawReader = rawReader;
         this.transposedLines = transposedLines;
         this.transposedFieldsToSkip = transposedFieldsToSkip;
         this.columnNames = rawReader.parseLine(headerline, true);
+        this.addPrimaryKey = addPrimaryKey;
         this.firstTable = null;
         columnTypes = null;
 
@@ -51,7 +55,7 @@ public class CsvReader extends DataReader {
                     firstTable.add(values);
                 }
                 valuesToJoin = values.length;
-                fieldValues = new String[columnNames.length];
+                fieldValues = new String[columnNames.length + (addPrimaryKey ? 1 : 0)];
             } catch (IOException e) {
                 throw new SQLException(e.toString());
             }
@@ -75,7 +79,15 @@ public class CsvReader extends DataReader {
         if (this.isPlainReader()) {
             boolean result = rawReader.next();
             lineNumber = rawReader.getLineNumber();
-            fieldValues = rawReader.getFieldValues();
+            if (addPrimaryKey) {
+                String[] tmp = rawReader.getFieldValues();
+                fieldValues = new String[tmp.length + 1];
+                System.arraycopy(tmp, 0, fieldValues, 1, tmp.length);
+                pkeyCounter++;
+                fieldValues[0] = String.valueOf(pkeyCounter);
+            } else {
+                fieldValues = rawReader.getFieldValues();
+            }
             return result;
         } else {
             if (joiningValues == null ||
@@ -114,11 +126,19 @@ public class CsvReader extends DataReader {
 
     @Override
     public String[] getColumnNames() {
+        String[] names;
         if (isPlainReader()) {
-            return rawReader.getColumnNames();
+            names = rawReader.getColumnNames();
         } else {
-            return columnNames;
+            names = columnNames;
         }
+        if (addPrimaryKey) {
+            String[] tmp = new String[names.length + 1];
+            System.arraycopy(names, 0, tmp, 1, names.length);
+            tmp[0] = "ID";
+            names = tmp;
+        }
+        return names;
     }
 
     private String[] getUpperColumnNames() {
@@ -153,7 +173,15 @@ public class CsvReader extends DataReader {
     @Override
     public Object getField(int i) throws SQLException {
         if (isPlainReader()) {
-            return rawReader.getField(i);
+            if (addPrimaryKey) {
+                if (i == 0) {
+                    return pkeyCounter;
+                } else {
+                    return rawReader.getField(i - 1);
+                }
+            } else {
+                return rawReader.getField(i - 1);
+            }
         } else {
             return null;
         }
@@ -170,7 +198,7 @@ public class CsvReader extends DataReader {
             throw new SQLException(CsvResources.getString("wrongColumnCount") + ": " +
                     lineNumber + " " +
                     CsvResources.getString("columnsRead") + ": " + fieldValues.length + " " +
-                    CsvResources.getString("columnsExpected") + ": " + getColumnNames().length);
+                    CsvResources.getString("columnsExpected") + ": " + getColumnNames().length +"\n" + String.join("   ", getColumnNames()) + "\n" + String.join("<,>", fieldValues));
         }
         if (columnTypes == null) {
             getColumnTypes();
@@ -266,7 +294,15 @@ public class CsvReader extends DataReader {
 
     @Override
     public int[] getColumnSizes() {
-        return rawReader.getColumnSizes();
+        if (addPrimaryKey) {
+            int[] tmp = rawReader.getColumnSizes();
+            int[] columnSizes = new int[tmp.length + 1];
+            System.arraycopy(tmp, 0, columnSizes, 1, tmp.length);
+            columnSizes[0] = DataReader.DEFAULT_COLUMN_SIZE;
+            return columnSizes;
+        } else {
+            return rawReader.getColumnSizes();
+        }
     }
 
     @Override

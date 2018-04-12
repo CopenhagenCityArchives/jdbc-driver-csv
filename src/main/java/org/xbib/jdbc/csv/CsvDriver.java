@@ -42,6 +42,8 @@ public class CsvDriver implements Driver {
     public static final String DEFAULT_FILE_TAIL_PREPEND = "False";
     public static final String DEFAULT_DEFECTIVE_HEADERS = "False";
     public static final String DEFAULT_SKIP_LEADING_DATA_LINES = "0";
+    public static final String DEFAULT_HANDLE_LINEBREAKS = "False";
+    public static final String DEFAULT_TABLES_TO_ADD_PRIMARY_KEY = null;
 
     public static final String FILE_EXTENSION = "fileExtension";
     public static final String SEPARATOR = "separator";
@@ -65,6 +67,8 @@ public class CsvDriver implements Driver {
     public static final String SKIP_LEADING_DATA_LINES = "skipLeadingDataLines";
     public static final String TRANSPOSED_LINES = "transposedLines";
     public static final String TRANSPOSED_FIELDS_TO_SKIP = "transposedFieldsToSkip";
+    public static final String HANDLE_LINEBREAKS = "handleLineBreaks";
+    public static final String TABLES_TO_ADD_PRIMARY_KEY = "tablesToAddPrimaryKey";
 
     public static final String CHARSET = "charset";
     public final static String URL_PREFIX = "jdbc:xbib:csv:";

@@ -240,7 +240,7 @@ public class CsvStatement implements Statement {
         try {
             parser.parse(sql);
         } catch (Exception e) {
-            throw new SQLException(CsvResources.getString("syntaxError") + ": " + e.getMessage());
+            throw new SQLException(CsvResources.getString("syntaxError") + ": " + ">>" + sql + "<<" + e.getClass().toString() + ":" + e.getMessage());
         }
 
         return executeParsedQuery(parser);
@@ -302,7 +302,9 @@ public class CsvStatement implements Statement {
                             String[] nameParts = connection.getNameParts();
                             String dirName = connection.getPath();
                             in = new FileSetInputStream(dirName,
-                                    fileNamePattern, nameParts,
+                                    parser.getTableName(),
+                                    connection.getFileNamePattern(),
+                                    connection.getExtension(), nameParts,
                                     connection.getSeparator(),
                                     connection.isFileTailPrepend(),
                                     connection.isSuppressHeaders(), filter,
@@ -340,10 +342,13 @@ public class CsvStatement implements Statement {
                             connection.isDefectiveHeaders(),
                             connection.getSkipLeadingDataLines(),
                             connection.getQuoteStyle(),
+                            connection.getHandleLineBreaks(),
                             connection.getFixedWidthColumns());
                     reader = new CsvReader(rawReader,
                             connection.getTransposedLines(),
-                            connection.getTransposedFieldsToSkip(), headerline);
+                            connection.getTransposedFieldsToSkip(),
+                            connection.getTablesToAddPrimaryKey().contains(tableName),
+                            headerline);
                 }
             } catch (IOException e) {
                 throw new SQLException(CsvResources.getString("fileReadError") + ": " + e);

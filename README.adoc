@@ -46,7 +46,7 @@ This driver accepts all types of CSV files defined by RFC 4180.
 The URL syntax for the driver URL is as follows
 
     jdbc:xbib:csv:<foldername>[?<property=value]",
-    
+
 File names are mapped to table names. By default, the extension `.csv` is assumed.
 Example:
 
@@ -341,6 +341,21 @@ default: False
 
 If True, leading and trailing whitespace is trimmed from each column value in the file. Column values inside quotes are not trimmed.
 
+*handleLineBreaks*
+
+type: boolean
+
+default: False
+
+If True, unquoted line breaks are handled by reading several rows.
+
+*tablesToAddPrimaryKey*
+
+type: String
+
+default: None
+
+A comma-separated list of table names to which a column that enumerates the row numbers is prepended, which can be used as a primary key.
 
 # Credits
 
